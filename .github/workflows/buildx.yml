@@ -1,0 +1,41 @@
+on:
+  schedule:
+    - cron:  '0 19 * * *'
+  workflow_dispatch:
+
+name: buildx
+jobs:
+  buildx:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+        with:
+         repository:  ${{ secrets.SOURCE_REPOSITORY }}
+      - name: setup-go
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: 'go.mod' 
+      - name: build
+        run: go build -o buildx -trimpath -ldflags "-s -w -buildid=" ./main
+      - name: Upload files to Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: buildx
+          path: |
+            ./buildx
+      - name: Commit ID
+        run: |
+            TMP_DIRECTORY="$(mktemp -d)"
+            RELEASE_LATEST="$(curl -IkLs -o ${TMP_DIRECTORY}/NUL -w %{url_effective} ${{ secrets.SOURCE_VERSION }} | grep -o "[^/]*$")"
+            RELEASE_LATEST="v${RELEASE_LATEST#v}"
+            echo "LATEST_RELEASE=$RELEASE_LATEST" >> $GITHUB_ENV
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ./buildx
+          tag: ${{ env.LATEST_RELEASE }}
+          overwrite: true
+          file_glob: true
+            
